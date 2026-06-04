@@ -73,7 +73,16 @@ class NotificationService {
 
     await PreferencesService.saveScheduledReminderTimes(times);
     for (int i = 0; i < times.length; i++) {
-      await _scheduleOne(i + 1, times[i], profile.cupSizeMl, profile.unitSystem);
+      // Project consumption at this notification: current + cups logged at each
+      // prior reminder. Compare to expected pace at that moment.
+      final projectedMl = consumedMl + i * profile.cupSizeMl;
+      final expectedMl =
+          HydrationCalculator.expectedProgressAt(times[i], profile) * goalMl;
+      final drinksDiff =
+          ((projectedMl - expectedMl) / profile.cupSizeMl).round();
+      final paceBody = _paceBody(drinksDiff, profile.cupSizeMl, profile.unitSystem);
+      await _scheduleOne(i + 1, times[i], profile.cupSizeMl, profile.unitSystem,
+          body: paceBody);
     }
 
     // Pre-schedule tomorrow so reminders restart without needing the app open.
@@ -96,17 +105,32 @@ class NotificationService {
     }
   }
 
+  static String _paceBody(int drinksDiff, double cupSizeMl, UnitSystem units) {
+    final label = HydrationCalculator.formatMl(cupSizeMl, units);
+    if (drinksDiff > 0) {
+      final s = drinksDiff == 1 ? 'drink' : 'drinks';
+      return 'You\'re $drinksDiff $s ahead — drink $label to keep it up!';
+    } else if (drinksDiff < 0) {
+      final behind = -drinksDiff;
+      final s = behind == 1 ? 'drink' : 'drinks';
+      return 'You\'re $behind $s behind — drink $label to catch up!';
+    } else {
+      return 'Right on pace — drink $label to stay on track!';
+    }
+  }
+
   static Future<void> _scheduleOne(
     int id,
     DateTime when,
     double cupSizeMl,
-    UnitSystem units,
-  ) async {
+    UnitSystem units, {
+    String? body,
+  }) async {
     final label = HydrationCalculator.formatMl(cupSizeMl, units);
     await _plugin.zonedSchedule(
       id,
       'Time to hydrate! 💧',
-      'Drink $label of water',
+      body ?? 'Drink $label of water',
       tz.TZDateTime.from(when, tz.local),
       NotificationDetails(
         android: AndroidNotificationDetails(

@@ -84,16 +84,19 @@ class HydrationCalculator {
   }
 
   // 0.0–1.0 fraction of the goal that should have been consumed by now.
-  static double expectedProgressNow(UserProfile profile) {
-    final now = DateTime.now();
+  static double expectedProgressNow(UserProfile profile) =>
+      expectedProgressAt(DateTime.now(), profile);
+
+  // 0.0–1.0 fraction of the goal that should be consumed by [time].
+  static double expectedProgressAt(DateTime time, UserProfile profile) {
     final wake = DateTime(
-        now.year, now.month, now.day, profile.wakeHour, profile.wakeMinute);
+        time.year, time.month, time.day, profile.wakeHour, profile.wakeMinute);
     final sleep = DateTime(
-        now.year, now.month, now.day, profile.sleepHour, profile.sleepMinute);
-    if (now.isBefore(wake)) return 0.0;
-    if (now.isAfter(sleep)) return 1.0;
+        time.year, time.month, time.day, profile.sleepHour, profile.sleepMinute);
+    if (time.isBefore(wake)) return 0.0;
+    if (time.isAfter(sleep)) return 1.0;
     final total = sleep.difference(wake).inSeconds;
-    final elapsed = now.difference(wake).inSeconds;
+    final elapsed = time.difference(wake).inSeconds;
     return (elapsed / total).clamp(0.0, 1.0);
   }
 
